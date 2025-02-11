@@ -1,0 +1,51 @@
+PATH com.standardBank.common;
+
+CREATE COMPUTE MODULE InsertMeticalNetRes_CreditMasterData_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE InRef REFERENCE TO InputRoot.JSON.Data;
+		
+		SET Environment.fileName = fileName;
+		SET Environment.MESSAGETYPE = 'HOST_RES';
+		SET Environment.MESSAGE = CAST(ASBITSTREAM(InRef) AS CHARACTER CCSID 1208 ENCODING 546);
+		SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+		SET Environment.serviceName = ApplicationLabel;
+		IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 200 THEN
+			SET Environment.MSG_ID = InputRoot.JSON.Data.Msg_Id;
+			--IF Environment.statusDescription ='Success' THEN
+			-- SET Environment.MSG_ID = InputRoot.JSON.Data.Msg_Id;
+			-- SET Environment.fileName = fileName;
+			-- SET Environment.MESSAGETYPE = 'HOST_RES';
+			-- SET Environment.MESSAGE = CAST(ASBITSTREAM(InRef) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+			SET Environment.statusCode = CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS CHARACTER) ;
+			SET Environment.statusDescription = InputRoot.JSON.Data.responseMessage.subResponseMessage; --'Success';
+			SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+			SET Environment.serviceName = ApplicationLabel;
+			-- SET Environment.meticalnetReq = meticalnetReq.record[Environment.MSG_ID];
+
+		ELSE
+			SET Environment.MSG_ID = InputRoot.JSON.Data.MSG_ID;
+			SET Environment.meticalnetRes = CAST(ASBITSTREAM(InRef) AS CHARACTER CCSID 1208 ENCODING 846);
+			SET Environment.statusCode = COALESCE(CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS CHARACTER), 500) ;
+			--SET Environment.statusDescription ='Success';
+--			SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+--			SET Environment.serviceName = ApplicationLabel;
+			SET Environment.statusDescription = 'Failure';
+		END IF;
+		-- CREATE FIRSTCHILD OF Environment.MeticalnetResponse DOMAIN('JSON') PARSE(Environment.MESSAGE ENCODING 849 CCSID 1208);
+		--CALL AUDIT_PROCEDURE_FILE( InputRoot.JSON.Data.Msg_Id, Environment.loggingTime, Environment.meticalnetRes, 'JSON', Environment.serviceName, Environment.flowname, Environment);
+		-- CALL AUDIT_PROCEDURE( Environment.MSG_ID, Environment.loggingTime, Environment.meticalnetRes, 'HOST_RES', Environment.serviceName, Environment.flowname, Environment, OutputRoot);
+
+		IF EventLogEnable THEN
+			LOG EVENT VALUES('HOST_RES: ',Environment.MSG_ID, Environment.loggingTime, Environment.MESSAGE, Environment.serviceName, Environment.flowname);
+		END IF;
+		LOG EVENT VALUES('HOST_RES is inserting in the Database: ');
+		CALL DB_LOGGING_MST_CREDITMASTERDATA(Environment);
+
+	END;
+END MODULE;

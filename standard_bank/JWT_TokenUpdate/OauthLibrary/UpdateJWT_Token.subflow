@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmCompute.msgnode="ComIbmCompute.msgnode" xmlns:ComIbmWSRequest.msgnode="ComIbmWSRequest.msgnode" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="OauthLibrary/UpdateJWT_Token.subflow" nsPrefix="OauthLibrary_UpdateJWT_Token.subflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1" useDefaults="true" udpSupport="true" nodeLayoutStyle="SQUARE">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OAUTH" name="OAUTH" defaultValueLiteral="grant_type=password&amp;client_id=aa336aab8a2bcd9b3e89bbd6840dc0e0&amp;client_secret=1c82eccd2ee8fa270b7cdb5301a73c7b&amp;scope=C_password&amp;username=somesh&amp;password=sarasu10">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <translation xmi:type="utility:TranslatableString" key="UpdateJWT_Token" bundleName="OauthLibrary/UpdateJWT_Token" pluginId="JWT_TokenUpdate"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/JWT_TokenUpdate/icons/full/obj16/UpdateJWT_Token.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/JWT_TokenUpdate/icons/full/obj30/UpdateJWT_Token.gif"/>
+    <composition>
+      <nodes xmi:type="eflow:FCMSource" xmi:id="InTerminal.Input" location="111,136">
+        <translation xmi:type="utility:TranslatableString" key="InTerminal.Input" bundleName="OauthLibrary/UpdateJWT_Token" pluginId="JWT_TokenUpdate"/>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSink" xmi:id="OutTerminal.Output" location="697,137">
+        <translation xmi:type="utility:TranslatableString" key="OutTerminal.Output" bundleName="OauthLibrary/UpdateJWT_Token" pluginId="JWT_TokenUpdate"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="546,137" dataSource="SQLSERVER" computeExpression="esql://routine/OauthLibrary#UpdateJWT_Token_Compute.Main">
+        <translation xmi:type="utility:ConstantString" string="updateJWT_Token"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="390,138" URLSpecifier="http://192.168.3.135:7800/MeticalNetTokenCall" httpVersion="1.1" protocol="TLS">
+        <translation xmi:type="utility:ConstantString" string="HTTP Request"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="244,136" computeExpression="esql://routine/OauthLibrary#SetTokenCallReq_Compute.Main">
+        <translation xmi:type="utility:ConstantString" string="SetTokenCallReq"/>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="OutTerminal.Output" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_1" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_3" sourceNode="InTerminal.Input" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_3" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer>
+      <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.OAUTH">
+        <propertyName xmi:type="utility:TranslatableString" key="Property.OAUTH" bundleName="OauthLibrary/UpdateJWT_Token" pluginId="JWT_TokenUpdate"/>
+      </propertyDescriptor>
+    </propertyOrganizer>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

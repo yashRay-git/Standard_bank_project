@@ -1,0 +1,118 @@
+DECLARE OutDirPath, ErrorDir, successFile, failureFile, errorparser, errortimeout, slash EXTERNAL CHARACTER '';
+
+CREATE COMPUTE MODULE EndOfDataFileGen_CreditOperations
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		LOG EVENT VALUES('EndOfDataFileGen initiated: ');
+
+		CALL FramingCSVSuccessRes();
+
+		CALL FramingCSVFailureRes();
+
+	   --CALL FileRead();
+
+		RETURN FALSE;
+	END;
+--
+--	CREATE PROCEDURE FileRead() BEGIN
+--		SET OutputLocalEnvironment.File.Directory = errorparser;
+--		SET OutputLocalEnvironment.Destination.File.Directory = OutDirPath|| slash || 'ParsingErrors';
+--		SET OutputLocalEnvironment.Destination.File.Name = 'CreditOperations_Parsing_Failure' || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+--		PROPAGATE TO TERMINAL 'out1';
+--		SET OutputLocalEnvironment.File.Directory = errortimeout;
+--		SET OutputLocalEnvironment.Destination.File.Directory = OutDirPath|| slash || 'TimeOut';
+--		SET OutputLocalEnvironment.Destination.File.Name = 'CreditOperations_TimeOut_Failure' || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+--		PROPAGATE TO TERMINAL 'out1';
+--	END;
+
+	CREATE PROCEDURE FramingCSVSuccessRes() BEGIN
+		DECLARE Inencoded, Inccsid INTEGER;
+		SET Inencoded = InputRoot.Properties.Encoding;
+		SET Inccsid = InputRoot.Properties.CodedCharSetId;
+		DELETE FIELD OutputRoot;
+		DECLARE DbSuccessRetrive ROW;
+		DECLARE MetcalNetRes,Msg_Id CHARACTER;
+		DECLARE Success CHARACTER 'Success';
+		DECLARE HOST_RES CHARACTER 'HOST_RES' ;
+		DECLARE FileName CHARACTER 'CreditOperations' || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+		LOG EVENT VALUES('Fetching the Database Success Records: ');
+		SET DbSuccessRetrive.responseMessage[] = PASSTHRU('SELECT * FROM MST_CREDITOPERATIONS WHERE STATUSDESCRIPTION = ? and FILENAME = ? and MESSAGETYPE = ?' TO Database.SQLSERVER VALUES(Success, FileName, HOST_RES));
+		LOG EVENT VALUES('Success Records fetched form the Database: ');
+		SET Environment.Success.Records[] = DbSuccessRetrive.responseMessage[];
+		DECLARE subResCode INTEGER 0;
+
+		IF EXISTS(DbSuccessRetrive.responseMessage[]) THEN
+			CREATE LASTCHILD OF OutputRoot DOMAIN('DFDL');
+			CREATE FIRSTCHILD OF OutputRoot.DFDL.responseMessage NAME('header');
+
+			SET OutputRoot.DFDL.responseMessage.header.Msg_Id = 'Msg_Id';
+			SET OutputRoot.DFDL.responseMessage.header.responseCode = 'responseCode';
+			SET OutputRoot.DFDL.responseMessage.header.subResponseMessage = 'subResponseMessage';
+			SET OutputRoot.DFDL.responseMessage.header.subResponseCode = 'subResponseCode';
+
+			SET OutputRoot.DFDL.responseMessage.record[] =
+			SELECT
+			T.MSGID AS Msg_Id,
+			T.STATUS AS responseCode,
+			T.STATUSDESCRIPTION AS subResponseMessage,
+			subResCode AS subResponseCode
+			FROM DbSuccessRetrive.responseMessage[] AS T;
+
+			IF (EXISTS(OutputRoot.DFDL.responseMessage.header[]) = TRUE) AND (EXISTS(OutputRoot.DFDL.responseMessage.record[]) = TRUE) THEN
+				SET OutputLocalEnvironment.Destination.File.Directory = OutDirPath || slash || 'MeticalNetRes';
+				SET OutputLocalEnvironment.Destination.File.Name = successFile || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+				-- LOG EVENT VALUES('APP_RES_S: ',Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'DFDL', Environment.serviceName, Environment.flowname);
+				LOG EVENT VALUES('File has been sent with the file Name: '|| OutputLocalEnvironment.Destination.File.Name);
+				PROPAGATE TO TERMINAL 'out2' DELETE NONE;
+			END IF;
+
+		END IF;
+
+	END;
+
+	CREATE PROCEDURE FramingCSVFailureRes() BEGIN
+		DECLARE Inencoded, Inccsid INTEGER;
+		SET Inencoded = InputRoot.Properties.Encoding;
+		SET Inccsid = InputRoot.Properties.CodedCharSetId;
+		DELETE FIELD OutputRoot;
+		DECLARE DbFailureRetrive ROW;
+		DECLARE MetcalNetRes,Msg_Id,Temp CHARACTER;
+		DECLARE filename CHARACTER 'CreditOperations' || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+		DECLARE Success CHARACTER 'Failure';
+		DECLARE HOST_RES CHARACTER 'HOST_RES' ;
+		LOG EVENT VALUES('Fetching the Database Failure Records: ');
+		SET DbFailureRetrive.responseMessage[] = PASSTHRU('SELECT * FROM MST_CREDITOPERATIONS WHERE STATUSDESCRIPTION = ? and FILENAME = ? and MESSAGETYPE = ?' TO Database.SQLSERVER VALUES(Success, filename, HOST_RES));
+		LOG EVENT VALUES('Failure Records fetched form the Database: ');
+		SET Environment.Failure.Records[] = DbFailureRetrive.responseMessage[];
+		DECLARE subResCode INTEGER 1;
+
+		IF EXISTS(DbFailureRetrive.responseMessage[]) THEN
+			CREATE LASTCHILD OF OutputRoot DOMAIN('DFDL');
+			CREATE FIRSTCHILD OF OutputRoot.DFDL.responseMessage NAME('header');
+
+			SET OutputRoot.DFDL.responseMessage.header.Msg_Id = 'Msg_Id';
+			SET OutputRoot.DFDL.responseMessage.header.responseCode = 'responseCode';
+			SET OutputRoot.DFDL.responseMessage.header.subResponseMessage = 'subResponseMessage';
+			SET OutputRoot.DFDL.responseMessage.header.subResponseCode = 'subResponseCode';
+
+			SET OutputRoot.DFDL.responseMessage.record[] =
+			SELECT
+			T.MSGID AS Msg_Id,
+			T.STATUS AS responseCode,
+			T.STATUSDESCRIPTION AS subResponseMessage,
+			subResCode AS subResponseCode
+			FROM DbFailureRetrive.responseMessage[] AS T;
+
+			IF (EXISTS(OutputRoot.DFDL.responseMessage.header[]) = TRUE) AND (EXISTS(OutputRoot.DFDL.responseMessage.record[]) = TRUE) THEN
+				SET OutputLocalEnvironment.Destination.File.Directory = OutDirPath || slash || 'MeticalNetRes';
+				SET OutputLocalEnvironment.Destination.File.Name = failureFile || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.csv';
+				-- LOG EVENT VALUES('APP_RES_F: ',Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'DFDL', Environment.serviceName, Environment.flowname);
+				LOG EVENT VALUES('File has been sent with the file Name: '||OutputLocalEnvironment.Destination.File.Name);
+				PROPAGATE TO TERMINAL 'out2' DELETE NONE;
+			END IF;
+			
+		END IF;
+
+	END;
+END MODULE;

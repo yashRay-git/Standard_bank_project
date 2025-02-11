@@ -1,0 +1,13 @@
+CREATE COMPUTE MODULE IgnoreFileAbsent_CreditOperations
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		LOG EVENT VALUES('No Files found in the SFTP directory');
+		SET OutputRoot = InputRoot;
+	END;
+END MODULE;

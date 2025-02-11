@@ -1,0 +1,52 @@
+PATH com.standardBank.common;
+
+CREATE COMPUTE MODULE BankendErrorHandle_CreditOperations
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+
+		IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 401 THEN
+			PROPAGATE TO TERMINAL 'out1';
+--			 InputRoot.HTTPResponseHeader = 500
+--			OR InputRoot.HTTPResponseHeader = 404
+--			OR NOT EXISTS(InputRoot.HTTPRequestHeader[]) = TRUE
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500 
+			OR InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 404 THEN
+			-- Set default response messages based on the HTTP response code
+			IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500 THEN
+				SET OutputRoot.JSON.Data.responseMessage.subResponseMessage = 'Internal Error';
+				SET OutputRoot.JSON.Data.responseMessage.subResponseCode = 'Backend is not responding';
+			ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 404 THEN
+				SET OutputRoot.JSON.Data.responseMessage.subResponseMessage = 'Not Found';
+				SET OutputRoot.JSON.Data.responseMessage.subResponseCode = 'Resource could not be found';
+			END IF;
+			-- Common settings for both error codes
+			SET OutputRoot.JSON.Data.MSG_ID = Environment.MSG_ID;
+			SET OutputRoot.JSON.Data.responseCode = CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS CHARACTER);
+			SET Environment.statusCode = CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS INTEGER);
+			SET Environment.statusDescription = 'Failure';
+			-- Prepare logging information
+			DECLARE created_On TIMESTAMP;
+			DECLARE application_name, flowName CHARACTER;
+			SET created_On = CURRENT_TIMESTAMP;
+			SET application_name = ApplicationLabel;
+			SET flowName = MessageFlowLabel;
+			SET Environment.payload = CAST(InputRoot.BLOB.BLOB AS CHARACTER);
+			-- Process the BLOB if it exists
+			IF EXISTS(InputRoot.BLOB[]) = TRUE THEN
+				CREATE LASTCHILD OF OutputRoot DOMAIN 'JSON'
+				PARSE (InputRoot.BLOB.BLOB ENCODING InputRoot.Properties.Encoding CCSID InputRoot.Properties.CodedCharSetId);
+--				CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+			END IF;
+			-- Propagate the error response to the specified terminal
+			PROPAGATE TO TERMINAL 'out3';
+		ELSE
+			PROPAGATE TO TERMINAL 'out2';
+		END IF;
+
+	END;
+END MODULE;
+	

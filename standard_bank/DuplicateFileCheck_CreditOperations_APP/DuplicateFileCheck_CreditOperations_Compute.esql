@@ -1,0 +1,43 @@
+DECLARE DuplicateFile, FileMissMatch, CreditOperationsFile, CreditOperations, CreditOperations_BackUpFiles EXTERNAL CHARACTER '';
+CREATE COMPUTE MODULE DuplicateFileCheck_CreditOperations_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE FileCountCheck INTEGER;
+		DECLARE InFilename CHARACTER;
+		SET InFilename = InputLocalEnvironment.File.Read.Name;
+		IF InFilename LIKE 'CreditOperations\_____\___\___.csv' THEN
+			SET FileCountCheck = SELECT count(a.FILENAME) FROM Database.MST_CREDITOPERATIONS as a WHERE EXISTS (SELECT a.FILENAME FROM Database.MST_CREDITOPERATIONS WHERE a.FILENAME = InFilename);
+			IF FileCountCheck = 0 THEN
+				LOG EVENT VALUES('File Validated & sent to proccessing');
+				IF CONTAINS( InFilename, CreditOperations) THEN
+					SET OutputRoot = InputRoot;
+					SET OutputLocalEnvironment.Destination.File.Name = InFilename;
+					SET OutputLocalEnvironment.Destination.File.Directory = CreditOperations_BackUpFiles;
+					PROPAGATE TO TERMINAL 'out' DELETE NONE;
+
+					SET OutputLocalEnvironment.Destination.File.Directory = CreditOperationsFile;
+					PROPAGATE TO TERMINAL 'out' DELETE NONE;
+
+				END IF;
+			ELSE
+				LOG EVENT VALUES('Duplicate file detected ');
+				SET OutputRoot = InputRoot;
+				SET OutputLocalEnvironment.Destination.File.Directory = DuplicateFile;
+				SET OutputLocalEnvironment.Destination.File.Name = InFilename;
+				PROPAGATE TO TERMINAL 'out' DELETE NONE;
+			END IF;
+		ELSE
+			LOG EVENT VALUES('Unidentified file has been receved');
+			SET OutputRoot = InputRoot;
+			SET OutputLocalEnvironment.Destination.File.Directory = FileMissMatch;
+			SET OutputLocalEnvironment.Destination.File.Name = InFilename;
+			PROPAGATE TO TERMINAL 'out' DELETE NONE;
+		END IF;
+	END;
+END MODULE;

@@ -1,0 +1,279 @@
+BROKER SCHEMA Exception_handler
+PATH com.standardBank.common;
+DECLARE Errorparse, Errortimeout EXTERNAL CHARACTER '';
+CREATE COMPUTE MODULE Exception_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		LOG EVENT VALUES('Exception handler Initiated: ');
+		DECLARE encodeRef ,ccidRef INTEGER;
+		SET Environment.JSON.Data = NULL;
+		--SET Environment.encodeRef = InputRoot.Properties.Encoding;
+		--SET Environment.ccidRef = InputRoot.Properties.CodedCharSetId;
+		SET encodeRef = COALESCE(Environment.encodeRef, InputRoot.Properties.Encoding);
+		SET ccidRef = COALESCE(Environment.ccidRef, InputRoot.Properties.CodedCharSetId);
+		DECLARE application_name CHARACTER ApplicationLabel;
+		DECLARE flowName CHARACTER MessageFlowLabel;
+		DECLARE created_On TIMESTAMP CURRENT_TIMESTAMP;
+		IF EXISTS(InputRoot.XMLNSC[]) THEN
+			DECLARE domainDataRef REFERENCE TO InputRoot.XMLNSC;
+			DECLARE inref REFERENCE TO InputRoot.XMLNSC;
+			SET Environment.payload = CAST(ASBITSTREAM (domainDataRef)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		ELSEIF EXISTS(InputRoot.DFDL[]) THEN
+			DECLARE domainDataRef REFERENCE TO InputRoot.DFDL;
+			DECLARE inref REFERENCE TO InputRoot.DFDL;
+			SET Environment.payload = CAST(ASBITSTREAM (domainDataRef)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		ELSE
+			DECLARE domainDataRef REFERENCE TO InputRoot.JSON.Data;
+			DECLARE inref REFERENCE TO InputRoot.JSON.Data;
+			SET Environment.payload = CAST(ASBITSTREAM (domainDataRef)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		END IF;
+		SET Environment.Variables.Dbloggingflag = COALESCE(InputRoot.HTTPResponseHeader.Dbloggingflag,Environment.Variables.Dbloggingflag);
+		SET Environment.Variables.Consolelogflag=COALESCE(InputRoot.HTTPResponseHeader.Consolelogflag,Environment.Variables.Consolelogflag);
+		DECLARE excp REFERENCE TO InputExceptionList.*[1];
+		DECLARE excpType CHARACTER FIELDNAME(InputExceptionList.*);
+		DECLARE text,actualExcp,number,actualExcpText,messageText CHARACTER;
+		DECLARE excptext REFERENCE TO excp.Text;
+		DECLARE insertRef REFERENCE TO InputExceptionList.*[1];
+		--SET OutputRoot.XMLNSC.ERROR.ErrorType=excpType;
+
+		DECLARE i INTEGER 1;
+		WHILE LASTMOVE(excp) DO
+			MOVE excp LASTCHILD;
+			IF excp.Number is not null THEN
+				SET text=excp.Text;
+				DECLARE inserts REFERENCE TO excp.Insert;
+				DECLARE texts REFERENCE TO excp.Insert.texts;
+				MOVE insertRef TO excp.Insert[>];
+				WHILE LASTMOVE(insertRef) AND FIELDNAME(insertRef) = 'Insert' DO
+					SET actualExcpText = insertRef.Text;
+					IF Environment.dataa is NULL THEN
+						SET Environment.dataa = actualExcpText;
+					END IF;
+					MOVE insertRef NEXTSIBLING;
+					IF insertRef.Text <> '' THEN
+						SET actualExcp = actualExcpText || insertRef.Text;
+						SET excpType = text;
+						/*IF insertRef.UserException.Text = 'User generated exception' THEN
+						SET excptext = insertRef.UserException.Text;
+						ELSE
+						SET
+						END IF;*/
+					END IF;
+				END WHILE;
+
+				SET number = excp.Number;
+			END IF;
+		END WHILE;
+		SET messageText = text ||', ' ||Environment.dataa ||', '||actualExcp;
+		CREATE LASTCHILD OF Environment DOMAIN 'JSON';
+		CREATE LASTCHILD OF Environment.JSON NAME 'Data';
+		DECLARE envRef BOOLEAN EXISTS(Environment.Variables.[]);
+		DECLARE errOutRef REFERENCE TO Environment.JSON.Data;
+		SET Environment.excpType = excpType;
+		SET Environment.errorRes = actualExcp;
+		--SET errOutRef.message = 'Failure';
+		--IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500 THEN
+		--SET errOutRef.error.error_desc = 'Internal Server Error';
+		--SET errOutRef.error.error_desc = 'Internal Server Error';
+		SET errOutRef.statusCode = InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+		IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 409 THEN
+			--SET errOutRef.statusCode = 'ESB-APPC-999';
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+			DECLARE jsonBLOB BLOB CAST(InputRoot.BLOB.BLOB AS BLOB CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+			--SET OutputRoot.HTTPResponseHeader = InputRoot.HTTPResponseHeader;
+			CREATE LASTCHILD OF OutputRoot DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB);
+			--ELSEIF excpType = 'Parser Exception' THEN
+			--SET errOutRef.statusCode = InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+			--CREATE LASTCHILD OF OutputRoot DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB);
+			--SET errOutRef.error.error_desc = excpType;
+
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 503 THEN
+			IF envRef = TRUE THEN
+				SET errOutRef.statusCode = 500;
+				SET errOutRef.timestamp = CURRENT_TIMESTAMP;
+				SET errOutRef.title = 'Service Unavailable';
+				SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" ,InputRoot.HTTPResponseHeader."X-Request-Id");
+				SET errOutRef.servicecode = COALESCE(Environment.servicecode , InputRoot.HTTPInputHeader.Servicecode);
+				SET errOutRef.details = 'Unfortunately, an internal server error prevented us from proceeding with your request. Try again later.';
+				SET errOutRef.path = InputLocalEnvironment.REST.Input.Path;
+				SET Environment.errorRes = CAST(ASBITSTREAM (Environment.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+				SET OutputRoot.JSON.Data = Environment.JSON.Data;
+			ELSE
+
+				DECLARE bodyBlob BLOB ASBITSTREAM(InputRoot.BLOB, InputProperties.Encoding,
+				InputProperties.CodedCharSetId);
+				DECLARE creationPtr REFERENCE TO OutputRoot;
+				CREATE LASTCHILD OF creationPtr DOMAIN('JSON') PARSE(bodyBlob,
+				InputProperties.Encoding,
+				InputProperties.CodedCharSetId);
+
+			END IF;
+
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 403 THEN
+			SET errOutRef.error.error_desc = 'Forbidden';
+			SET errOutRef.error.requestId = Environment."X-Request-Id";
+			--SET errOutRef.error.ErrorType = excpType;
+			SET errOutRef.error.additionalData.esb_error_code = 403;
+			SET errOutRef.error.additionalData.esb_error_desc = 'ERROR: The request could not be satisfied'; --Environment.dataa ||', '||actualExcp;
+			SET Environment.errorRes = CAST(ASBITSTREAM (Environment.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+			SET OutputRoot.JSON.Data = Environment.JSON.Data;
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 404 THEN
+			SET errOutRef.statusCode = 500;
+			SET errOutRef.timestamp = CURRENT_TIMESTAMP;
+			SET errOutRef.title = 'Resource Not Found';
+			SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" ,InputRoot.HTTPResponseHeader."X-Request-Id");
+			SET errOutRef.servicecode = COALESCE(Environment.servicecode , InputRoot.HTTPInputHeader.Servicecode);
+			SET errOutRef.details = 'We were not able to find the resource you were looking for. Resource may have been moved or never existed.';
+			SET errOutRef.path = COALESCE(SUBSTRING(Environment.payload AFTER 'for URL '), InputLocalEnvironment.REST.Input.Path);
+			SET OutputRoot.JSON.Data = Environment.JSON.Data;
+--			CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500 OR Environment.statusCode = 500 THEN
+			IF envRef = TRUE THEN
+				SET errOutRef.statusCode = COALESCE(Environment.statusCode,InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code");
+				SET errOutRef.timestamp = CURRENT_TIMESTAMP;
+				SET errOutRef.title = 'Internal server Error';
+				SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" ,InputRoot.HTTPResponseHeader."X-Request-Id");
+				SET errOutRef.servicecode = COALESCE(Environment.servicecode , InputRoot.HTTPInputHeader.Servicecode);
+				SET errOutRef.details = 'Unforunately, an internal server error prevented us from proceding with your request.Try again later.';
+				SET errOutRef.path = COALESCE(Environment.path, InputLocalEnvironment.REST.Input.Path);
+				SET OutputRoot.JSON.Data = Environment.JSON.Data;
+			ELSE
+				DECLARE bodyBlob BLOB ASBITSTREAM(InputRoot.BLOB.BLOB, InputProperties.Encoding,
+				InputProperties.CodedCharSetId);
+				DECLARE creationPtr REFERENCE TO OutputRoot;
+				CREATE LASTCHILD OF creationPtr DOMAIN('JSON') PARSE(bodyBlob, InputProperties.Encoding, InputProperties.CodedCharSetId);
+			END IF;
+
+
+		ELSE
+
+			SET errOutRef.statusCode = 400;
+			IF number LIKE('%2951%') THEN -- OR number LIKE('%5702%')
+				SET errOutRef.currentTimeStamp = CURRENT_TIMESTAMP;
+				SET errOutRef.title = 'Missing in header fields';
+				SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" ,InputRoot.HTTPInputHeader."X-Request-Id");
+				SET errOutRef.details = 'The submitted data contains one or more field errors';
+				SET errOutRef.path = InputRoot.HTTPInputHeader."X-Original-HTTP-Command";
+				CREATE FIELD OutputRoot.JSON.Data.fields IDENTITY (JSON.Array)fields;
+				SET errOutRef.fields.Item[1].field = SUBSTRING(actualExcp FROM 1 FOR 10);
+				SET errOutRef.fields.Item[1].message = COALESCE(actualExcpText, 'A validation error occurred when parsing a JSON message. Mandatory fields are missing');
+				SET OutputRoot.JSON.Data = Environment.JSON.Data;
+			ELSE
+
+				IF number LIKE('%5751%') THEN
+					SET errOutRef.currentTimeStamp = CURRENT_TIMESTAMP;
+					SET errOutRef.title = 'form validation errors';
+					SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" , InputRoot.HTTPInputHeader."X-Request-");
+					SET errOutRef.Servicecode = COALESCE(Environment.servicecode , InputRoot.HTTPInputHeader.Servicecode);
+					SET errOutRef.details = 'The submitted data contains one or more field errors';
+					SET errOutRef.path = InputLocalEnvironment.REST.Input.Path;
+					-- CREATE FIELD OutputRoot.JSON.Data IDENTITY (JSON.Array)fileds;
+					CREATE FIELD OutputRoot.JSON.Data.fields IDENTITY (JSON.Array)fields;
+					SET errOutRef.fields.Item[1].field = SUBSTRING(actualExcp FROM 1 FOR 10);
+					SET errOutRef.fields.Item[1].message = COALESCE(Environment.dataa ||', '||actualExcp, 'A validation error occurred when parsing a JSON message. Mandatory fields are missing');
+					-- SET errOutRef.fields.field = COALESCE(number, 5751);
+					-- SET errOutRef.fields.message = COALESCE(Environment.dataa ||', '||actualExcp, 'A validation error occurred when parsing a JSON message. Mandatory fields are missing');
+					SET OutputRoot.JSON.Data = Environment.JSON.Data;
+				ELSEIF number LIKE('%3151%') THEN
+					SET errOutRef.currentTimeStamp = CURRENT_TIMESTAMP;
+					SET errOutRef.title = 'Timeout Error';
+					SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" , InputRoot.HTTPInputHeader."X-Request-");
+					SET errOutRef.Servicecode = COALESCE(Environment.servicecode , InputRoot.HTTPInputHeader.Servicecode);
+					SET errOutRef.details = 'The server is taking too long to respond';
+					SET errOutRef.path = InputLocalEnvironment.REST.Input.Path;
+					-- CREATE FIELD OutputRoot.JSON.Data IDENTITY (JSON.Array)fileds;
+					CREATE FIELD OutputRoot.JSON.Data.fields IDENTITY (JSON.Array)fields;
+					SET errOutRef.fields.Item[1].field = SUBSTRING(actualExcp FROM 1 FOR 10);
+					SET errOutRef.fields.Item[1].message = COALESCE(Environment.dataa ||', '||actualExcp, 'A timeout occurred while performing the socket operation. The server is taking too long to respond. Please try again later.');
+					SET Environment.statusCode = 504;
+					SET OutputLocalEnvironment.Destination.File.Directory = Errortimeout;
+					SET OutputLocalEnvironment.Destination.File.Name = InputLocalEnvironment.File.Name;
+					-- SET errOutRef.fields.field = COALESCE(number, 5751);
+					-- SET errOutRef.fields.message = COALESCE(Environment.dataa ||', '||actualExcp, 'A validation error occurred when parsing a JSON message. Mandatory fields are missing');
+					SET OutputRoot.BLOB.BLOB = CAST(Environment.payload AS BLOB CCSID ccidRef);
+--					SET OutputRoot.JSON.Data = Environment.JSON.Data;
+				ELSEIF CONTAINS(messageText, 'DFDL') = TRUE THEN
+					/*ELSEIF NOT EXISTS(InputRoot.HTTPResponseHeader[]) THEN
+					SET errOutRef.statusCode = 500;
+					SET errOutRef.timestamp = CURRENT_TIMESTAMP;
+					SET errOutRef.title = 'Internal Server Error';
+					SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" , InputRoot.HTTPInputHeader."X-Request-Id");
+					SET errOutRef.servicecode = COALESCE(Environment.servicecode, InputRoot.HTTPInputHeader.Servicecode);
+					SET errOutRef.details = COALESCE('Unforunately, an internal server error prevented us from proceding with your request.Try again later.', messageText);
+					SET errOutRef.path = COALESCE(Environment.path, InputLocalEnvironment.REST.Input.Path);
+					SET OutputRoot.JSON.Data = Environment.JSON.Data;
+					SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500;*/
+					SET OutputRoot.BLOB.BLOB = CAST(Environment.payload AS BLOB CCSID ccidRef);
+					LOG EVENT VALUES('Parsing error has been occered : ');
+					SET OutputLocalEnvironment.Destination.File.Directory = Errorparse;
+					SET OutputLocalEnvironment.Destination.File.Name = InputLocalEnvironment.File.Name; --'error.txt';
+					SET Environment.msgId = InputLocalEnvironment.File.Name;
+					SET Environment.fileName = InputLocalEnvironment.File.Name;
+					SET Environment.meticalnetReq = Environment.payload;
+					SET Environment.meticalnetRes = messageText; --CAST(ASBITSTREAM(InRef) AS CHARACTER CCSID 1208 ENCODING 846);
+					SET Environment.statusCode = 422; --COALESCE(CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS CHARACTER), 500) ;
+					--SET Environment.statusDescription ='Success';
+					SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+					SET Environment.serviceName = ApplicationLabel;
+					SET Environment.statusDescription = 'Failure';
+--					SET OutputLocalEnvironment.Destination.File.Name = 'Warrantees_Parsing_Failure' || CAST(CURRENT_DATE AS CHARACTER FORMAT '_yyyy_MM_dd')|| '.txt';
+					-- CALL DB_LOGGING_METICALNET(Environment);
+					--LOG EVENT values(Environment.messageId, created_On, Environment.payload, excpType, application_name,messageText);
+					--CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+					
+				ELSEIF CONTAINS(messageText, 'timeout') = TRUE THEN
+					/*ELSEIF NOT EXISTS(InputRoot.HTTPResponseHeader[]) THEN
+					SET errOutRef.statusCode = 500;
+					SET errOutRef.timestamp = CURRENT_TIMESTAMP;
+					SET errOutRef.title = 'Internal Server Error';
+					SET errOutRef.requestId = COALESCE(Environment."X-Request-Id" , InputRoot.HTTPInputHeader."X-Request-Id");
+					SET errOutRef.servicecode = COALESCE(Environment.servicecode, InputRoot.HTTPInputHeader.Servicecode);
+					SET errOutRef.details = COALESCE('Unforunately, an internal server error prevented us from proceding with your request.Try again later.', messageText);
+					SET errOutRef.path = COALESCE(Environment.path, InputLocalEnvironment.REST.Input.Path);
+					SET OutputRoot.JSON.Data = Environment.JSON.Data;
+					SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500;*/
+					SET OutputRoot.BLOB.BLOB = CAST(Environment.payload AS BLOB CCSID ccidRef);
+					LOG EVENT VALUES('Server timeout had been occurred: ');
+					SET OutputLocalEnvironment.Destination.File.Directory = Errortimeout;
+					SET OutputLocalEnvironment.Destination.File.Name = InputLocalEnvironment.File.Name; --'error.txt';
+					SET Environment.msgId = InputLocalEnvironment.File.Name;
+					SET Environment.fileName = InputLocalEnvironment.File.Name;
+					SET Environment.meticalnetReq = Environment.payload;
+					SET Environment.meticalnetRes = messageText; --CAST(ASBITSTREAM(InRef) AS CHARACTER CCSID 1208 ENCODING 846);
+					SET Environment.statusCode = 504; --COALESCE(CAST(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" AS CHARACTER), 500) ;
+					--SET Environment.statusDescription ='Success';
+					SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+					SET Environment.serviceName = ApplicationLabel;
+					SET Environment.statusDescription = 'Failure';
+
+				ELSEIF NOT EXISTS(OutputRoot.JSON.Data[]) THEN
+					DECLARE bodyBlob BLOB ASBITSTREAM(InputRoot.BLOB.BLOB, InputProperties.Encoding, InputProperties.CodedCharSetId);
+					-- DECLARE bodyBlob BLOB ASBITSTREAM(InputRoot.DFDL, InputProperties.Encoding, InputProperties.CodedCharSetId);
+					DECLARE creationPtr REFERENCE TO OutputRoot;
+					CREATE LASTCHILD OF creationPtr DOMAIN('JSON') PARSE(bodyBlob ENCODING InputRoot.Properties.Encoding CCSID InputRoot.Properties.CodedCharSetId);
+					LOG EVENT values(Environment."X-Request-Id", created_On, Environment.payload, excpType, application_name,messageText);
+--					CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+				END IF;
+			END IF;
+		END IF;
+		SET Environment.Variables.Values.Consolelogflag = COALESCE(Environment.Variables.Values.Consolelogflag,InputRoot.HTTPInputHeader.Consolelogflag);
+		SET Environment.Variables.Values.Dbloggingflag = COALESCE(Environment.Variables.Values.Dbloggingflag,InputRoot.HTTPInputHeader.Dbloggingflag);
+		SET Environment.payload = CAST(ASBITSTREAM (OutputRoot.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+			LOG EVENT values(Environment."X-Request-Id", created_On, Environment.payload, excpType, application_name,messageText);
+		END IF;
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+			SET Environment.ErrorHandler.JSON.Data = OutputRoot.JSON.Data;
+			--DELETE FIELD OutputRoot.JSON;
+--			CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+		END IF;
+		--SET OutputRoot.JSON.Data = Environment.ErrorHandler.JSON.Data;
+		SET OutputLocalEnvironment.Destination.HTTP.ReplyStatusCode = OutputRoot.JSON.Data.statusCode;
+
+	END;
+END MODULE;

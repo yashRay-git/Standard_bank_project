@@ -1,0 +1,126 @@
+PATH com.standardBank.common;
+DECLARE JWT_TOKEN, fileName SHARED CHARACTER;
+DECLARE OutDirPath EXTERNAL CHARACTER;
+DECLARE EventLogEnable EXTERNAL BOOLEAN;
+CREATE COMPUTE MODULE CreditMasterData_FramingJsonReq
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL FramingJsonReq();
+		--IF Environment.statusCode = 200 THEN
+		-- CALL FramingCSVSuccessRes();
+		-- --ELSE
+		-- CALL FramingCSVFailureRes();
+		-- --END IF;
+		-- DECLARE DbSuccessRetrive ROW;
+		-- DECLARE DbFailureRetrive ROW;
+		-- SET DbSuccessRetrive.responseMessage[] = SELECT * FROM Database.meticalnet_status_tracker as a WHERE a.STATUSDESCRIPTION = 'Success' and a.FILENAME = InputLocalEnvironment.File.Name;
+		-- SET Environment.Success.Records[] = DbSuccessRetrive.responseMessage[];
+		-- SET DbFailureRetrive.responseMessage[] = SELECT * FROM Database.meticalnet_status_tracker as b WHERE b.STATUSDESCRIPTION = 'Failure' and b.FILENAME = InputLocalEnvironment.File.Name;
+		-- SET Environment.Failure.Records[] = DbFailureRetrive.responseMessage[];
+		-- SET Environment.DBFailure.responseMessage[] = LIST{Environment.Success.Records[],Environment.Failure.Records[]};
+		-- -- -- IF InputRoot.DFDL.CreditMasterDataSchema.record[] = Environment.DBFailure.responseMessage[] THEN
+		-- CALL DBFailure();
+		-- -- END IF;
+
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE FramingJsonReq() BEGIN
+		LOG EVENT VALUES('CreditMasterData Initiated: ');
+		SET Environment.Inref = InputRoot.DFDL.CreditMasterDataSchema.record;
+		DECLARE InRef REFERENCE TO Environment.Inref;
+		SET Environment.MSG_ID = InRef.MSG_ID;
+		SET Environment.InputProperties.CCSID = InputRoot.Properties.CodedCharSetId;
+		SET Environment.InputProperties.Encoding = InputRoot.Properties.Encoding;
+		SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+		SET Environment.serviceName = ApplicationLabel;
+		-- SET Environment.ClientReq = CAST(ASBITSTREAM( InRef CCSID InputRoot.Properties.CodedCharSetId) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+		IF Environment.fileName IS NULL THEN
+			SET Environment.fileName = InputLocalEnvironment.File.Name;
+		END IF;
+		SET fileName = Environment.fileName;
+		SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+		SET Environment.flowname = MessageFlowLabel;
+		SET Environment.serviceName = ApplicationLabel;
+		-- CALL AUDIT_PROCEDURE( Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'APP_REQ', Environment.serviceName, Environment.flowname, Environment, OutputRoot);
+		IF EventLogEnable THEN
+			LOG EVENT VALUES('APP_REQ: ',Environment.msgId, Environment.loggingTime, Environment.ClientReq, Environment.serviceName, Environment.flowname);
+		END IF;
+
+		IF JWT_TOKEN IS NULL THEN
+			LOG EVENT VALUES('Initiating the Token Call: ');
+			CALL tokenCall(Environment);
+			SET OutputRoot.HTTPInputHeader.Authorization = Environment.HTTPInputHeader.Authorization;
+			SET JWT_TOKEN = Environment.HTTPInputHeader.Authorization;
+		ELSEIF JWT_TOKEN <> Environment.Variables.JWT_Token THEN
+			SET JWT_TOKEN = Environment.Variables.JWT_Token;
+			SET OutputRoot.HTTPInputHeader.Authorization = JWT_TOKEN;
+			SET Environment.HTTPInputHeader.Authorization = JWT_TOKEN;
+		ELSE
+			SET OutputRoot.HTTPInputHeader.Authorization = JWT_TOKEN;
+			SET Environment.HTTPInputHeader.Authorization = JWT_TOKEN;
+		END IF;
+
+		IF Environment.HTTPInputHeader.Authorization IS NOT NULL THEN
+			CREATE FIELD OutputRoot;
+			CREATE LASTCHILD OF OutputRoot DOMAIN('JSON');
+			-- DECLARE I INTEGER 1;
+			-- DECLARE J INTEGER;
+			-- SET J = CARDINALITY(InputRoot.DFDL.CreditMasterDataSchema.record[]);
+			--
+			--
+			-- WHILE I <= J DO
+
+			CREATE LASTCHILD OF OutputRoot.JSON NAME('Data');
+			DECLARE OutRef REFERENCE TO OutputRoot.JSON.Data;
+
+			SET OutRef.MSG_ID = InputRoot.DFDL.CreditMasterDataSchema.record.MSG_ID;
+			SET OutRef.CRED_MAST_NUIB = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_NUIB;
+			SET OutRef.CRED_MAST_COUNTERCD = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_COUNTERCD;
+			SET OutRef.CRED_MAST_REFERENCE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_REFERENCE;
+			SET OutRef.CRED_MAST_CLIE_TYPE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_CLIE_TYPE;
+			SET OutRef.CRED_MAST_SCOPE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_SCOPE;
+			SET OutRef.CRED_MAST_CLIE_ENTITY = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_CLIE_ENTITY;
+			SET OutRef.CRED_MAST_PRODUCT = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_PRODUCT;
+			SET OutRef.CRED_MAST_AMORT_TYP = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_AMORT_TYP;
+			SET OutRef.CRED_MAST_TYPE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_TYPE;
+			SET OutRef.CRED_MAST_PURP = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_PURP;
+			SET OutRef.CRED_MAST_AMTREQ = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_AMTREQ;
+			SET OutRef.CRED_MAST_AMTAPPR = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_AMTAPPR;
+			SET OutRef.CRED_MAST_CUR = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_CUR;
+			SET OutRef.CRED_MAST_HIRE_DATE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_HIRE_DATE;
+			SET OutRef.CRED_MAST_DISB_DATE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_DISB_DATE;
+			SET OutRef.CRED_MAST_PYMT_DATE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_PYMT_DATE;
+			SET OutRef.CRED_MAST_ACCP_PRD = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_ACCP_PRD;
+			SET OutRef.CRED_MAST_MAT_DATE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_MAT_DATE;
+			SET OutRef.CRED_MAST_NO_INSTMT = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_NO_INSTMT;
+			SET OutRef.CRED_MAST_REFUND_FREQ = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_REFUND_FREQ;
+			SET OutRef.CRED_MAST_INTRATE_TYPE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_INTRATE_TYPE;
+			SET OutRef.CRED_MAST_SUBC_COMM = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_SUBC_COMM;
+			SET OutRef.CRED_MAST_REF_INTRATE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_REF_INTRATE;
+			SET OutRef.CRED_MAST_TRF_OPR = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_TRF_OPR;
+			SET OutRef.CRED_MAST_LINK_OPR = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_LINK_OPR;
+			SET OutRef.CRED_MAST_PLACE_USE = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_PLACE_USE;
+			SET OutRef.CRED_MAST_SRC_FUND = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_SRC_FUND;
+			SET OutRef.CRED_MAST_RESRC_PERC = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_RESRC_PERC;
+			SET OutRef.CRED_MAST_INITCONT_REF = InputRoot.DFDL.CreditMasterDataSchema.record.CRED_MAST_INITCONT_REF;
+
+			SET Environment.MESSAGETYPE = 'HOST_REQ';
+			SET Environment.MESSAGE = CAST(ASBITSTREAM( OutRef CCSID InputRoot.Properties.CodedCharSetId) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+			-- CALL AUDIT_PROCEDURE( Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'HOST_REQ', Environment.serviceName, Environment.flowname, Environment, OutputRoot);
+			IF EventLogEnable THEN
+				LOG EVENT VALUES('HOST_REQ: ',Environment.msgId, Environment.loggingTime, Environment.meticalnetReq, 'JSON', Environment.serviceName, Environment.flowname);
+			END IF;
+			LOG EVENT VALUES('HOST_REQ sent: ', Environment.loggingTime, Environment.msgId);
+			CALL DB_LOGGING_MST_CREDITMASTERDATA(Environment);
+			PROPAGATE TO TERMINAL 'out1' DELETE NONE;
+			DELETE FIELD OutRef;
+			-- SET I = I + 1;
+			-- END WHILE;
+		ELSE
+			Throw EXCEPTION VALUES('401 UnAuthorized');
+		END IF;
+	END;
+
+END MODULE;

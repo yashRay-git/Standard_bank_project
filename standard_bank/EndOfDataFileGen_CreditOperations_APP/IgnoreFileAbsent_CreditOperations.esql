@@ -1,0 +1,13 @@
+CREATE COMPUTE MODULE IgnoreFileAbsent_CreditOperations
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		LOG EVENT VALUES('No Parsing or Timeout Files/Directory found');
+		SET OutputRoot = InputRoot;
+	END;
+END MODULE;

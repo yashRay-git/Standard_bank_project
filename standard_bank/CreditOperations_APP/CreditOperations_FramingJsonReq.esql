@@ -1,0 +1,107 @@
+PATH com.standardBank.common;
+DECLARE JWT_TOKEN, fileName SHARED CHARACTER;
+DECLARE OutDirPath EXTERNAL CHARACTER;
+DECLARE EventLogEnable EXTERNAL BOOLEAN;
+CREATE COMPUTE MODULE CreditOperations_FramingJsonReq
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL FramingJsonReq();
+		-- DECLARE DbSuccessRetrive ROW;
+		-- DECLARE DbFailureRetrive ROW;
+		--
+		-- SET DbSuccessRetrive.responseMessage[] = SELECT * FROM Database.meticalnet_status_tracker as a WHERE a.STATUSDESCRIPTION = 'Success' and a.FILENAME = InputLocalEnvironment.File.Name;
+		-- SET Environment.Success.Records[] = DbSuccessRetrive.responseMessage[];
+		-- SET DbFailureRetrive.responseMessage[] = SELECT * FROM Database.meticalnet_status_tracker as b WHERE b.STATUSDESCRIPTION = 'Failure' and b.FILENAME = InputLocalEnvironment.File.Name;
+		-- SET Environment.Failure.Records[] = DbFailureRetrive.responseMessage[];
+		-- SET Environment.DBFailure.responseMessage[] = LIST{Environment.Success.Records[],Environment.Failure.Records[]};
+		-- CALL DBFailure();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE FramingJsonReq() BEGIN
+		LOG EVENT VALUES('CreditOperations Initiated: ');
+		SET Environment.Inref = InputRoot.DFDL.CreditOperationsSchema.record;
+		DECLARE InRef REFERENCE TO Environment.Inref;
+		SET Environment.MSG_ID = InRef.MSG_ID;
+		SET Environment.InputProperties.CCSID = InputRoot.Properties.CodedCharSetId;
+		SET Environment.InputProperties.Encoding = InputRoot.Properties.Encoding;
+		SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+		SET Environment.serviceName = ApplicationLabel;
+		SET Environment.ClientReq = CAST(ASBITSTREAM( InRef CCSID InputRoot.Properties.CodedCharSetId) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+		IF Environment.fileName IS NULL THEN
+			SET Environment.fileName = InputLocalEnvironment.File.Name;
+		END IF;
+		SET fileName = Environment.fileName;
+		SET Environment.loggingTime = CAST(CURRENT_TIMESTAMP as CHARACTER);
+		SET Environment.flowname = MessageFlowLabel;
+		SET Environment.serviceName = ApplicationLabel;
+		-- CALL AUDIT_PROCEDURE( Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'APP_REQ', Environment.serviceName, Environment.flowname, Environment, OutputRoot);
+		IF EventLogEnable THEN
+			LOG EVENT VALUES('APP_REQ: ',Environment.msgId, Environment.loggingTime, Environment.ClientReq, Environment.serviceName, Environment.flowname);
+		END IF;
+
+		IF JWT_TOKEN IS NULL THEN
+			LOG EVENT VALUES('Initiating the Token Call: ');
+			CALL tokenCall(Environment);
+			SET OutputRoot.HTTPInputHeader.Authorization = Environment.HTTPInputHeader.Authorization;
+			SET JWT_TOKEN = Environment.HTTPInputHeader.Authorization;
+		ELSEIF JWT_TOKEN <> Environment.Variables.JWT_Token THEN
+			SET JWT_TOKEN = Environment.Variables.JWT_Token;
+			SET OutputRoot.HTTPInputHeader.Authorization = JWT_TOKEN;
+			SET Environment.HTTPInputHeader.Authorization = JWT_TOKEN;
+		ELSE
+			SET OutputRoot.HTTPInputHeader.Authorization = JWT_TOKEN;
+			SET Environment.HTTPInputHeader.Authorization = JWT_TOKEN;
+		END IF;
+
+		IF Environment.HTTPInputHeader.Authorization IS NOT NULL THEN
+			CREATE FIELD OutputRoot;
+			CREATE LASTCHILD OF OutputRoot DOMAIN('JSON');
+			-- DECLARE I INTEGER 1;
+			-- DECLARE J INTEGER;
+			-- SET J = CARDINALITY(InputRoot.DFDL.CreditOperationsSchema.record[]);	 
+			-- WHILE I <= J DO
+
+			CREATE LASTCHILD OF OutputRoot.JSON NAME('Data');
+			DECLARE OutRef REFERENCE TO OutputRoot.JSON.Data;
+
+			SET OutRef.MSG_ID = InputRoot.DFDL.CreditOperationsSchema.record.MSG_ID;
+			SET OutRef.CRED_OPR_NUIB = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_NUIB;
+			SET OutRef.CRED_OPR_REFERENCE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_REFERENCE;
+			SET OutRef.CRED_OPR_STATUS = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_STATUS;
+			SET OutRef.CRED_OPR_RENEG_LITG = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_RENEG_LITG;
+			SET OutRef.CRED_OPR_RENOGLITG_DATE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_RENOGLITG_DATE;
+			SET OutRef.CRED_OPR_TOT_DISB = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_TOT_DISB;
+			SET OutRef.CRED_OPR_OUT_CAPITAL = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_OUT_CAPITAL;
+			SET OutRef.CRED_OPR_OVERDURE_CAP = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_OVERDURE_CAP;
+			SET OutRef.CRED_OPR_ACCR_INTR = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_ACCR_INTR;
+			SET OutRef.CRED_OPR_ACCR_INTRARRE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_ACCR_INTRARRE;
+			SET OutRef.CRED_OPR_INST_VALUE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_INST_VALUE;
+			SET OutRef.CRED_OPR_REF_INTRATE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_REF_INTRATE;
+			SET OutRef.CRED_OPR_EFF_INTRATE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_EFF_INTRATE;
+			SET OutRef.CRED_OPR_LATE_INTRATE = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_LATE_INTRATE;
+			SET OutRef.CRED_OPR_START_DELAY = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_START_DELAY;
+			SET OutRef.CRED_OPR_NOF_LATEDAYS = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_NOF_LATEDAYS;
+			SET OutRef.CRED_OPR_NOF_OVDINST = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_NOF_OVDINST;
+			SET OutRef.CRED_OPR_VAL_PROV = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_VAL_PROV;
+			SET OutRef.CRED_OPR_IMP_VAL = InputRoot.DFDL.CreditOperationsSchema.record.CRED_OPR_IMP_VAL;
+
+			SET Environment.MESSAGETYPE = 'HOST_REQ';
+			SET Environment.MESSAGE = CAST(ASBITSTREAM( OutRef CCSID InputRoot.Properties.CodedCharSetId) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+			-- CALL AUDIT_PROCEDURE( Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'HOST_REQ', Environment.serviceName, Environment.flowname, Environment, OutputRoot);
+			IF EventLogEnable THEN
+				LOG EVENT VALUES('HOST_REQ: ',Environment.msgId, Environment.loggingTime, Environment.ClientReq, 'JSON', Environment.serviceName, Environment.flowname);
+			END IF;
+			LOG EVENT VALUES('HOST_REQ sent: ', Environment.loggingTime, Environment.msgId);
+			CALL DB_LOGGING_MST_CREDITOPERATIONS(Environment);
+			PROPAGATE TO TERMINAL 'out1' DELETE NONE;
+			DELETE FIELD OutRef;
+			-- SET I = I + 1;
+			-- END WHILE;
+		ELSE
+			Throw EXCEPTION VALUES('401 UnAuthorized');
+		END IF;
+	END;
+
+END MODULE;

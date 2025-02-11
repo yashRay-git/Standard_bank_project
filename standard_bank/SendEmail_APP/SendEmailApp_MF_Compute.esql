@@ -1,0 +1,70 @@
+DECLARE ToAddress, FromAddress, slash EXTERNAL CHARACTER;
+
+CREATE COMPUTE MODULE SendEmailApp_MF_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+
+		SET OutputRoot.EmailOutputHeader.To = ToAddress;
+		SET OutputRoot.EmailOutputHeader.From = FromAddress;
+		IF InputLocalEnvironment.File.Read.NoMatchReason = 'NoFile' THEN
+			PROPAGATE TO TERMINAL 'out2';
+		ELSE
+			IF InputLocalEnvironment.File.Read.Directory = MeticalNetRes THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Report: ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+
+			ELSEIF InputLocalEnvironment.File.Read.Directory = path || slash || 'ParsingErrors' THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Error: ParsingErrors occured. ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+			ELSEIF InputLocalEnvironment.File.Read.Directory = path || slash || 'DBFailure' THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Error: sql exceptions occured. ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+			ELSEIF InputLocalEnvironment.File.Read.Directory = path || slash || 'DuplicateFile' THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Error: Duplicate file found in the Directory. ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+			ELSEIF InputLocalEnvironment.File.Read.Directory = path || slash || 'FileMissMatch' THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Error: An unidentified file has been recived. ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+			ELSEIF InputLocalEnvironment.File.Read.Directory = path || slash || 'TimeOut' THEN
+				SET OutputRoot.EmailOutputHeader.Subject = 'Error: An unidentified file has been recived. ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+
+			ELSE
+				SET OutputRoot.EmailOutputHeader.Subject = 'Report: ' || InputLocalEnvironment.File.Read.Name;
+				CREATE LASTCHILD OF OutputRoot DOMAIN('BLOB')PARSE(CAST(InputRoot.BLOB.BLOB AS BLOB CCSID 1208));
+				SET Environment.BLOB.data = OutputRoot.BLOB.BLOB;
+				LOG EVENT VALUES('Mail sent : ');
+				PROPAGATE TO TERMINAL 'out1';
+			END IF;
+		END IF;
+
+	END;
+END MODULE;

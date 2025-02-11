@@ -1,0 +1,105 @@
+BROKER SCHEMA com.standardBank.common
+--DECLARE RoutingDetails SHARED ROW;
+DECLARE tokenDetails SHARED ROW;
+
+CREATE COMPUTE MODULE common_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		-- SET OutputRoot = InputRoot;
+	END;
+END MODULE;
+--CREATE PROCEDURE AUDIT_PROCEDURE(IN MSG_ID CHARACTER, IN CREATED_ON TIMESTAMP, IN PAYLOAD CHARACTER, IN PAYLOAD_TYPE CHARACTER, IN PAYLOAD_FLOW CHARACTER)
+--LANGUAGE DATABASE
+--EXTERNAL NAME "AUDIT_LOGS";
+
+
+CREATE PROCEDURE tokenCall (IN Environment REFERENCE)
+BEGIN
+	SET tokenDetails.Values[] = SELECT A.TOKEN FROM Database.jwt_tokens AS A WHERE A.TOKEN_TYPE = 'Bearer';
+	SET Environment.HTTPInputHeader.Authorization = 'Bearer ' ||tokenDetails.Values.TOKEN ;
+END;
+
+CREATE PROCEDURE DB_LOGGING_METICALNET(IN Environment REFERENCE)
+BEGIN
+	DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+	-- DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+	--CREATE LASTCHILD OF OutputRoot DOMAIN 'XMLNSC';
+	--SET OutputRoot.XMLNSC.DBLogging.id = Environment.id;
+	/*SET OutputRoot.XMLNSC.DBLogging.created_On = CREATED_ON;
+	SET OutputRoot.XMLNSC.DBLogging.payload = Environment.payload;
+	SET OutputRoot.XMLNSC.DBLogging.application_name = application_name;
+	SET OutputRoot.XMLNSC.DBLogging.reqType = Environment.logType;
+	SET OutputRoot.XMLNSC.DBLogging.flowName = Environment.flowName;
+	SET OutputRoot.XMLNSC.DBLogging.srvCode = Environment.servicecode;*/
+	--INSERT INTO Database.METICALNET_STATUS_TRACKER VALUES( Environment.MSG_ID, Environment.fileName, Environment.meticalnetReq, Environment.meticalnetRes, Environment.statusCode, Environment.statusDescription, Environment.loggingTime, Environment.serviceName);
+	INSERT INTO Database.METICALNET_STATUS_TRACKER VALUES( Environment.MSG_ID, Environment.fileName, Environment.meticalnetReq, Environment.meticalnetRes, Environment.statusCode, Environment.statusDescription, Environment.loggingTime, Environment.serviceName);
+	--PROPAGATE TO TERMINAL 'out1';
+	-- SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	-- SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	-- SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	-- SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	-- THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+	SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+END;
+
+
+CREATE PROCEDURE DB_LOGGING_MST_CREDITMASTERDATA(IN Environment REFERENCE)
+BEGIN
+	DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+
+	INSERT INTO Database.MST_CREDITMASTERDATA VALUES( Environment.MSG_ID, Environment.fileName, 
+	Environment.MESSAGETYPE, Environment.MESSAGE, Environment.statusCode, Environment.statusDescription, 
+	Environment.loggingTime, Environment.serviceName);
+
+	SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+END;
+CREATE PROCEDURE DB_LOGGING_MST_CREDITOPERATIONS(IN Environment REFERENCE)
+BEGIN
+	DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+
+	INSERT INTO Database.MST_CREDITOPERATIONS VALUES( Environment.MSG_ID, Environment.fileName, Environment.MESSAGETYPE, Environment.MESSAGE, Environment.statusCode, Environment.statusDescription, Environment.loggingTime, Environment.serviceName);
+
+	SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+END;
+CREATE PROCEDURE DB_LOGGING_MST_CREDITGUARANTEES(IN Environment REFERENCE)
+BEGIN
+	DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+
+	INSERT INTO Database.MST_CREDITGUARANTEES VALUES( Environment.MSG_ID, Environment.fileName, Environment.MESSAGETYPE, Environment.MESSAGE, Environment.statusCode, Environment.statusDescription, Environment.loggingTime, Environment.serviceName);
+
+	SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+END;
+CREATE PROCEDURE DB_LOGGING_MST_WARRANTEES(IN Environment REFERENCE)
+BEGIN
+	DECLARE CONTINUE HANDLER FOR SQLSTATE LIKE '%' BEGIN END;
+
+	INSERT INTO Database.MST_WARRANTEES VALUES( Environment.MSG_ID, Environment.fileName, Environment.MESSAGETYPE, Environment.MESSAGE, Environment.statusCode, Environment.statusDescription, Environment.loggingTime, Environment.serviceName);
+
+	SET Environment.XMLNSC.Top.WHILE.mySQLCODE = SQLCODE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLSTATE = SQLSTATE;
+	SET Environment.XMLNSC.Top.WHILE.mySQLNATIVEERROR = SQLNATIVEERROR;
+	SET Environment.XMLNSC.Top.WHILE.mySQLERRORTEXT = SQLERRORTEXT;
+	THROW USER EXCEPTION VALUES( -1, '%', 42, 'error text' );
+END;

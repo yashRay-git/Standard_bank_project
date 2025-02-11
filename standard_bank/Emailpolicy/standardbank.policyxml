@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policies>
+  <policy policyType="SMTP" policyName="standardbank" policyTemplate="SMTP">
+    <smtpServer>eidiko-india.com:587</smtpServer>
+    <securityIdentity>secid</securityIdentity>
+    <starttlsEnable>false</starttlsEnable>
+    <starttlsRequired>false</starttlsRequired>
+  </policy>
+</policies>

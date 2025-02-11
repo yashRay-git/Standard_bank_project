@@ -1,0 +1,26 @@
+DECLARE path, DuplicateFile, FileMissMatch, ParsingErrors, TimeOut, MeticalNetRes EXTERNAL CHARACTER;
+
+CREATE COMPUTE MODULE SendEmailApp_MF_Compute1
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		LOG EVENT VALUES('SendEmailApp Initiated : ');
+		SET OutputLocalEnvironment.Destination.File.Directory = MeticalNetRes;
+		PROPAGATE TO TERMINAL 'out';
+		SET OutputLocalEnvironment.Destination.File.Directory = MeticalNetRes;
+		PROPAGATE TO TERMINAL 'out';
+		SET OutputLocalEnvironment.Destination.File.Directory = DuplicateFile;
+		PROPAGATE TO TERMINAL 'out';
+		SET OutputLocalEnvironment.Destination.File.Directory = FileMissMatch;
+		PROPAGATE TO TERMINAL 'out';
+		SET OutputLocalEnvironment.Destination.File.Directory = ParsingErrors;
+		PROPAGATE TO TERMINAL 'out';
+		SET OutputLocalEnvironment.Destination.File.Directory = TimeOut;
+		PROPAGATE TO TERMINAL 'out';
+
+	END;
+END MODULE;

@@ -1,0 +1,51 @@
+BROKER SCHEMA com.standardBank.common
+
+DECLARE sftpHost, sftpPort, sftpUser, sftpPassword, sftpRootDirectory, mailRecipient, mailRecipient1, mailSender EXTERNAL CHARACTER;
+
+CREATE COMPUTE MODULE SFTP_File_Scanning_Scheduler_App_MF_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+				
+		DECLARE result CHARACTER;
+		CALL fetch_files(sftpHost,sftpPort,sftpUser,sftpPassword,sftpRootDirectory) into result;
+		
+	
+	
+	IF(CONTAINS(result,'FAIL: No such file')) THEN
+	--If specified root directory does not exists
+	--Don't send mail
+	return FALSE;
+	
+	ELSEIF(CONTAINS(result,'FAIL: ')) THEN
+	-- Session timeout or Auth failure
+	--send mail
+		SET OutputRoot.EmailOutputHeader.To=mailRecipient||','||mailRecipient1;
+		SET OutputRoot.EmailOutputHeader.From=mailSender;
+		SET OutputRoot.EmailOutputHeader.Subject='ALERT!!! Failure Occured';
+		DECLARE mydata BLOB CAST(result AS BLOB CCSID 1208 ENCODING 546);
+		SET OutputRoot.BLOB.BLOB=mydata;	
+	
+	ELSEIf(result<>'FNE' AND result<>'NFP') THEN
+		--send mail	
+		--"NFP"= No files present
+		--"FNE"= Folder not exists
+		-- FAIL: No such file
+		DECLARE loc CHARACTER TRIM(SUBSTRING(SUBSTRING(result BEFORE 'SFTP files Count is:') AFTER 'SFTP files location is:'));
+		SET OutputRoot.EmailOutputHeader.To=mailRecipient||','||mailRecipient1;
+		SET OutputRoot.EmailOutputHeader.From=mailSender;
+		SET OutputRoot.EmailOutputHeader.Subject='Notification: Files are piled up in the path : '||loc;
+		DECLARE mydata BLOB CAST(result AS BLOB CCSID 1208 ENCODING 546);
+		SET OutputRoot.BLOB.BLOB=mydata;		
+	ELSE
+		--SET OutputRoot.XMLNSC.msg=result;
+		--Don't send mail
+		RETURN FALSE;
+	END IF;
+		
+		RETURN TRUE;
+	END;
+
+CREATE PROCEDURE fetch_files(IN sftpHost CHARACTER,IN sftpPort CHARACTER,IN sftpUser CHARACTER,IN sftpPassword CHARACTER,IN sftpRootDirectory CHARACTER) RETURNS CHARACTER
+LANGUAGE JAVA
+EXTERNAL NAME "com.standardBank.common.SFTP_File_Scanning_Scheduler.getfiledetails";
+END MODULE;

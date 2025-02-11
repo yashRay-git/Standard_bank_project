@@ -1,0 +1,15 @@
+BROKER SCHEMA OauthLibrary
+
+CREATE COMPUTE MODULE SetTokenCallReq_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+	DECLARE OAUTH CHARACTER 'grant_type=password&client_id=aa336aab8a2bcd9b3e89bbd6840dc0e0&client_secret=1c82eccd2ee8fa270b7cdb5301a73c7b&scope=C_password&username=somesh&password=sarasu10';
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		SET OutputRoot.Properties.ContentType = 'application/x-www-form-urlencoded';
+		SET OutputRoot.BLOB.BLOB = CAST(OAUTH AS BLOB CCSID 1208);
+	END;
+END MODULE;
